@@ -1,0 +1,18 @@
+1.​ Where is the RISC-V program located in the vsd-riscv2 repository?
+The RISC-V example programs are stored in the samples directory of the repository.
+
+2.​ How is the program compiled and loaded into memory?
+First, the C source code is compiled into machine code.
+During compilation, it is converted into assembly, then into binary, and finally linked.
+After that, the resulting binary is written into memory (or flashed into ROM/flash), so the processor can execute it.
+
+3.​ How does the RISC-V core access memory and memory-mapped IO?
+The RISC-V core reads and writes data using memory addresses.
+Normal memory stores instructions and data.
+For memory-mapped I/O, specific address ranges are reserved for hardware peripherals, allowing the CPU to communicate with devices by reading/writing those addresses.
+
+4.​ Where would a new FPGA IP block logically integrate in this system?
+A new FPGA IP block would function like a peripheral device.
+It would be connected to the system bus and assigned a specific memory address range.
+The CPU can then control or read from it using memory-mapped I/O operations.
+
