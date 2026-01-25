@@ -1,0 +1,8 @@
+1.IO Address Space Definition :
+wire isIO = mem_addr[22];  // Address bit 22 = 1 means IO space
+wire isRAM = !isIO;
+
+2.Existing Peripheral Address Mapping :
+localparam IO_LEDS_bit = 0;      // W five leds
+localparam IO_UART_DAT_bit = 1;  // W data to send (8 bits)
+localparam IO_UART_CNTL_bit = 2; // R status.
