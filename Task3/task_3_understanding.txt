@@ -1,0 +1,48 @@
+GPIO ADDRESS OFFSET DECODING
+----------------------------
+
+The GPIO IP uses word-aligned addressing. Since each register is 32 bits (4 bytes),
+only address bits [3:2] are required to select between registers.
+
+Address mapping:
+
+addr_i[3:2] = 2'b00  →  Offset 0x00  →  GPIO_DATA
+addr_i[3:2] = 2'b01  →  Offset 0x04  →  GPIO_DIR
+addr_i[3:2] = 2'b10  →  Offset 0x08  →  GPIO_READ
+
+Explanation:
+
+Because each register occupies 4 bytes, the lower two address bits [1:0]
+are always 00 (word aligned). Therefore, bits [3:2] uniquely identify
+which register is being accessed.
+
+During a write operation:
+- If addr_i[3:2] == 00 → Write to GPIO_DATA
+- If addr_i[3:2] == 01 → Write to GPIO_DIR
+
+During a read operation:
+- If addr_i[3:2] == 00 → Read GPIO_DATA
+- If addr_i[3:2] == 01 → Read GPIO_DIR
+- If addr_i[3:2] == 10 → Read GPIO_READ
+
+
+GPIO DIRECTION BEHAVIOR
+-----------------------
+
+Each bit in the GPIO_DIR register controls the direction of the
+corresponding GPIO pin.
+
+If GPIO_DIR[i] = 1:
+    - The pin operates in OUTPUT mode.
+    - The value driven on the pin comes from GPIO_DATA[i].
+    - Reading the pin returns the driven output value.
+
+If GPIO_DIR[i] = 0:
+    - The pin operates in INPUT mode.
+    - The output driver is disabled.
+    - Reading the pin returns the external input signal gpio_in[i].
+
+This allows individual control of each GPIO pin, enabling some pins
+to act as outputs while others operate as inputs at the same time.
+
+This behavior mimics real SoC GPIO peripherals used in production systems.
