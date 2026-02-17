@@ -1,0 +1,120 @@
+module gpio_int_ip #(
+    parameter GPIO_WIDTH = 32
+)(
+    input  wire                     clk,
+    input  wire                     rst_n,
+
+    input  wire [4:0]               addr_i,
+    input  wire                     write_en,
+    input  wire                     read_en,
+    input  wire [31:0]              wdata,
+    output reg  [31:0]              rdata,
+
+    input  wire [GPIO_WIDTH-1:0]    gpio_in,
+    output wire [GPIO_WIDTH-1:0]    gpio_out,
+    output wire [GPIO_WIDTH-1:0]    gpio_oe,
+
+    output wire                     irq
+);
+
+    // Address map (word aligned)
+    localparam ADDR_DIR     = 3'b000; // 0x00
+    localparam ADDR_OUT     = 3'b001; // 0x04
+    localparam ADDR_IN      = 3'b010; // 0x08
+    localparam ADDR_SET     = 3'b011; // 0x0C
+    localparam ADDR_CLR     = 3'b100; // 0x10
+    localparam ADDR_TOGGLE  = 3'b101; // 0x14
+    localparam ADDR_INT_EN  = 3'b110; // 0x18
+    localparam ADDR_INT_ST  = 3'b111; // 0x1C
+
+    wire [2:0] addr_offset = addr_i[4:2];
+
+    reg [GPIO_WIDTH-1:0] gpio_dir;
+    reg [GPIO_WIDTH-1:0] gpio_out_reg;
+    reg [GPIO_WIDTH-1:0] int_en;
+    reg [GPIO_WIDTH-1:0] int_status;
+
+    // 2-FF Synchronizer
+    reg [GPIO_WIDTH-1:0] sync_ff1, sync_ff2, sync_prev;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            sync_ff1  <= 0;
+            sync_ff2  <= 0;
+            sync_prev <= 0;
+        end else begin
+            sync_ff1  <= gpio_in;
+            sync_ff2  <= sync_ff1;
+            sync_prev <= sync_ff2;
+        end
+    end
+
+    wire [GPIO_WIDTH-1:0] gpio_in_sync = sync_ff2;
+    wire [GPIO_WIDTH-1:0] rising_edge  = (~sync_prev) & gpio_in_sync;
+
+    always @(posedge clk or negedge rst_n) begin
+        if (!rst_n) begin
+            gpio_dir     <= 0;
+            gpio_out_reg <= 0;
+            int_en       <= 0;
+            int_status   <= 0;
+        end else begin
+
+            // Rising-edge interrupt on input pins only
+            int_status <= int_status | (rising_edge & ~gpio_dir);
+
+            if (write_en) begin
+                case (addr_offset)
+
+                    ADDR_DIR:
+                        gpio_dir <= wdata[GPIO_WIDTH-1:0];
+
+                    ADDR_OUT:
+                        gpio_out_reg <= wdata[GPIO_WIDTH-1:0];
+
+                    ADDR_SET:
+                        gpio_out_reg <= gpio_out_reg |
+                                        wdata[GPIO_WIDTH-1:0];
+
+                    ADDR_CLR:
+                        gpio_out_reg <= gpio_out_reg &
+                                       ~wdata[GPIO_WIDTH-1:0];
+
+                    ADDR_TOGGLE:
+                        gpio_out_reg <= gpio_out_reg ^
+                                        wdata[GPIO_WIDTH-1:0];
+
+                    ADDR_INT_EN:
+                        int_en <= wdata[GPIO_WIDTH-1:0];
+
+                    ADDR_INT_ST: // W1C
+                        int_status <= int_status &
+                                     ~wdata[GPIO_WIDTH-1:0];
+
+                    default: ;
+                endcase
+            end
+        end
+    end
+
+    assign gpio_out = gpio_out_reg;
+    assign gpio_oe  = gpio_dir;
+
+    assign irq = |(int_status & int_en);
+
+    always @(*) begin
+        if (read_en) begin
+            case (addr_offset)
+                ADDR_DIR:    rdata = gpio_dir;
+                ADDR_OUT:    rdata = gpio_out_reg;
+                ADDR_IN:     rdata = gpio_in_sync;
+                ADDR_INT_EN: rdata = int_en;
+                ADDR_INT_ST: rdata = int_status;
+                default:     rdata = 32'h0;
+            endcase
+        end else begin
+            rdata = 32'h0;
+        end
+    end
+
+endmodule
